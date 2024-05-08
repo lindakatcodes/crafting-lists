@@ -7,6 +7,10 @@
 
  tom scraper example:
  https://github.com/tvanantwerp/scraper-example?tab=readme-ov-file
+
+ // TODO: Add these in phase 2 - builds is a list and upgrades is tables but totally different headings (and also needs text from above the table)
+// "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/builds/",
+// "https://www.reddit.com/r/LEGOfortnite/wiki/index/upgrades/",
 */
 
 import { existsSync, mkdirSync } from "node:fs";
@@ -14,6 +18,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import axios, { AxiosError } from "axios";
 import { JSDOM } from "jsdom";
+import { DataAPIClient, Db } from "@datastax/astra-db-ts";
+import "dotenv/config";
 
 const __dirname = "./";
 
@@ -24,9 +30,17 @@ const itemUrls = [
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/weapons/",
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/machinery/",
 ];
-// TODO: Add these in phase 2 - builds is a list and upgrades is tables but totally different headings (and also needs text from above the table)
-// "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/builds/",
-// "https://www.reddit.com/r/LEGOfortnite/wiki/index/upgrades/",
+
+const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT } = process.env;
+
+let db: Db;
+
+if (ASTRA_DB_API_ENDPOINT && ASTRA_DB_APPLICATION_TOKEN) {
+  const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN);
+  db = client.db(ASTRA_DB_API_ENDPOINT);
+} else {
+  console.error("Missing environment variables, cannot connect to AstraDB");
+}
 
 function fetchPage(url: string): Promise<string | undefined> {
   const HTMLData = axios
@@ -122,14 +136,18 @@ async function getData() {
   console.log("starting data fetching...");
   const allItemData = [];
 
+  const collection = await db.collection("lego-fortnite");
+
   for await (const url of itemUrls) {
     const document = await fetchFromWebOrCache(url);
     const data = extractData(document);
     allItemData.push(...data);
   }
 
-  console.log({ allItemData });
   console.log("data fetching complete!");
 }
 
 getData();
+
+
+
