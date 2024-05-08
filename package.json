@@ -7,7 +7,8 @@
     "start": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "load-data": "node --no-warnings=ExperimentalWarning --loader ts-node/esm src/scripts/loadItemData.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.6.0",
@@ -24,5 +25,12 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5",
     "vue": "^3.4.27"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.6",
+    "@types/node": "^20.12.11",
+    "axios": "^1.6.8",
+    "jsdom": "^24.0.0",
+    "ts-node": "^10.9.2"
   }
 }
