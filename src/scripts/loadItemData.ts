@@ -1,7 +1,4 @@
 /* 
-  3. create vectors for objects
-  4. store in astra
-
   swiftieGPT example:
   https://github.com/datastax/SwiftieGPT/blob/main/scripts/loadDb.ts
 
@@ -18,10 +15,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import axios, { AxiosError } from "axios";
 import { JSDOM } from "jsdom";
-import { DataAPIClient, Db } from "@datastax/astra-db-ts";
-import "dotenv/config";
-
-const __dirname = "./";
+import { DataAPIClient } from "@datastax/astra-db-ts";
 
 const itemUrls = [
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/equipment/",
@@ -31,16 +25,15 @@ const itemUrls = [
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/machinery/",
 ];
 
+const resourceUrl =
+  "https://www.reddit.com/r/LEGOfortnite/wiki/index/resources/";
+
+const root = "./";
+
 const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT } = process.env;
 
-let db: Db;
-
-if (ASTRA_DB_API_ENDPOINT && ASTRA_DB_APPLICATION_TOKEN) {
-  const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN);
-  db = client.db(ASTRA_DB_API_ENDPOINT);
-} else {
-  console.error("Missing environment variables, cannot connect to AstraDB");
-}
+const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN!);
+const db = client.db(ASTRA_DB_API_ENDPOINT!);
 
 function fetchPage(url: string): Promise<string | undefined> {
   const HTMLData = axios
@@ -50,25 +43,24 @@ function fetchPage(url: string): Promise<string | undefined> {
       console.error(`There was an error with ${error.config?.url}.`);
       console.error(error.toJSON());
     });
-
   return HTMLData;
 }
 
 async function fetchFromWebOrCache(url: string, ignoreCache = false) {
   // If the cache folder doesn't exist, create it
-  if (!existsSync("./.cache")) {
+  if (!existsSync(".cache")) {
     mkdirSync(".cache");
   }
   console.log(`Getting data for ${url}...`);
   if (
     !ignoreCache &&
     existsSync(
-      resolve(__dirname, `.cache/${Buffer.from(url).toString("base64")}.html`)
+      resolve(root, `.cache/${Buffer.from(url).toString("base64")}.html`)
     )
   ) {
     console.log(`I read ${url} from cache`);
     const HTMLData = await readFile(
-      resolve(__dirname, `.cache/${Buffer.from(url).toString("base64")}.html`),
+      resolve(root, `.cache/${Buffer.from(url).toString("base64")}.html`),
       { encoding: "utf8" }
     );
     const dom = new JSDOM(HTMLData);
@@ -78,10 +70,7 @@ async function fetchFromWebOrCache(url: string, ignoreCache = false) {
     const HTMLData = await fetchPage(url);
     if (!ignoreCache && HTMLData) {
       writeFile(
-        resolve(
-          __dirname,
-          `.cache/${Buffer.from(url).toString("base64")}.html`
-        ),
+        resolve(root, `.cache/${Buffer.from(url).toString("base64")}.html`),
         HTMLData,
         { encoding: "utf8" }
       );
@@ -91,7 +80,7 @@ async function fetchFromWebOrCache(url: string, ignoreCache = false) {
   }
 }
 
-function extractData(document: Document) {
+function extractItemData(document: Document) {
   const tableData = [];
   const allTables: HTMLTableElement[] = Array.from(
     document.querySelectorAll("table")
@@ -119,7 +108,7 @@ function extractData(document: Document) {
           const splitPair = pair.split(/(\d+)/);
           return {
             qty: Number(splitPair[1]),
-            name: splitPair[2].trim(),
+            name: splitPair[2],
           };
         });
       tableData.push({
@@ -132,22 +121,49 @@ function extractData(document: Document) {
   return tableData;
 }
 
+function extractResourceData(document: Document) {
+  const resources = [];
+  const allTables: HTMLTableElement[] = Array.from(
+    document.querySelectorAll("table")
+  );
+
+  for (const table of allTables) {
+    const headers = Array.from(table.tHead!.children[0].children);
+    const resourceIndex = headers.findIndex((el) =>
+      el.innerHTML.includes("Resource")
+    );
+    const biomeIndex = headers.findIndex((el) =>
+      el.innerHTML.includes("Biome")
+    );
+
+    const rows = Array.from(table.tBodies[0].rows);
+
+    for (const row of rows) {
+      const resource = row.children[resourceIndex].textContent;
+      const biome = row.children[biomeIndex].textContent;
+      resources.push({
+        resource,
+        biome,
+      });
+    }
+  }
+  return resources;
+}
+
 async function getData() {
   console.log("starting data fetching...");
   const allItemData = [];
 
-  const collection = await db.collection("lego-fortnite");
-
   for await (const url of itemUrls) {
     const document = await fetchFromWebOrCache(url);
-    const data = extractData(document);
+    const data = extractItemData(document);
     allItemData.push(...data);
   }
+
+  const resourceDoc = await fetchFromWebOrCache(resourceUrl);
+  const resourceData = extractResourceData(resourceDoc);
 
   console.log("data fetching complete!");
 }
 
 getData();
-
-
-
