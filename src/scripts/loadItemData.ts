@@ -1,21 +1,27 @@
-/* 
-  swiftieGPT example:
-  https://github.com/datastax/SwiftieGPT/blob/main/scripts/loadDb.ts
-
- tom scraper example:
- https://github.com/tvanantwerp/scraper-example?tab=readme-ov-file
-
- // TODO: Add these in phase 2 - builds is a list and upgrades is tables but totally different headings (and also needs text from above the table)
-// "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/builds/",
-// "https://www.reddit.com/r/LEGOfortnite/wiki/index/upgrades/",
-*/
-
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import axios, { AxiosError } from "axios";
 import { JSDOM } from "jsdom";
-import { DataAPIClient } from "@datastax/astra-db-ts";
+import { DataAPIClient, type VectorDoc } from "@datastax/astra-db-ts";
+import OpenAI from "openai";
+
+interface ItemObject extends VectorDoc {
+  item: string;
+  rarity: string;
+  ingredients: Array<
+    | {
+        qty: number;
+        name: string;
+      }
+    | undefined
+  >;
+}
+
+interface ResourceObject extends VectorDoc {
+  resource: string;
+  biome: string;
+}
 
 const itemUrls = [
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/equipment/",
@@ -30,10 +36,10 @@ const resourceUrl =
 
 const root = "./";
 
-const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT } = process.env;
+const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT, OPENAI_API_KEY } =
+  process.env;
 
-const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN!);
-const db = client.db(ASTRA_DB_API_ENDPOINT!);
+const openai = new OpenAI();
 
 function fetchPage(url: string): Promise<string | undefined> {
   const HTMLData = axios
@@ -81,7 +87,7 @@ async function fetchFromWebOrCache(url: string, ignoreCache = false) {
 }
 
 function extractItemData(document: Document) {
-  const tableData = [];
+  const tableData: ItemObject[] = [];
   const allTables: HTMLTableElement[] = Array.from(
     document.querySelectorAll("table")
   );
@@ -99,18 +105,17 @@ function extractItemData(document: Document) {
     const rows = Array.from(table.tBodies[0].rows);
 
     for (const row of rows) {
-      const item = row.children[itemIndex].textContent;
-      const rarity = row.children[rareIndex].textContent;
-      const ingredients = row.children[ingredientIndex].innerHTML
-        .split(", ")
-        .map((pair) => {
+      const item = row.children[itemIndex].textContent || "";
+      const rarity = row.children[rareIndex].textContent || "N/A";
+      const ingredients =
+        row.children[ingredientIndex].innerHTML.split(", ").map((pair) => {
           if (pair === "") return;
           const splitPair = pair.split(/(\d+)/);
           return {
             qty: Number(splitPair[1]),
             name: splitPair[2],
           };
-        });
+        }) || [];
       tableData.push({
         item,
         rarity,
@@ -122,7 +127,7 @@ function extractItemData(document: Document) {
 }
 
 function extractResourceData(document: Document) {
-  const resources = [];
+  const resources: ResourceObject[] = [];
   const allTables: HTMLTableElement[] = Array.from(
     document.querySelectorAll("table")
   );
@@ -139,8 +144,8 @@ function extractResourceData(document: Document) {
     const rows = Array.from(table.tBodies[0].rows);
 
     for (const row of rows) {
-      const resource = row.children[resourceIndex].textContent;
-      const biome = row.children[biomeIndex].textContent;
+      const resource = row.children[resourceIndex].textContent || "";
+      const biome = row.children[biomeIndex].textContent || "";
       resources.push({
         resource,
         biome,
@@ -150,20 +155,98 @@ function extractResourceData(document: Document) {
   return resources;
 }
 
-async function getData() {
+async function seedData() {
   console.log("starting data fetching...");
-  const allItemData = [];
+
+  // setup our db
+  const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN!);
+  const db = client.db(ASTRA_DB_API_ENDPOINT!, { namespace: "lego_fortnite" });
+  console.log(`Connected to DB ${db.id}`);
+
+  // items first - these are what users want to create
+  const itemCollection = await db.createCollection<ItemObject>(
+    "lego_fortnite_items",
+    {
+      defaultId: { type: "uuidv7" },
+      vector: {
+        dimension: 1536,
+        metric: "dot_product",
+      },
+      checkExists: false,
+    }
+  );
+  console.log(itemCollection);
 
   for await (const url of itemUrls) {
     const document = await fetchFromWebOrCache(url);
     const data = extractItemData(document);
-    allItemData.push(...data);
+
+    // loop over to generate embedding and add to astra
+    for (const itemObj of data) {
+      const ingredientsToEmbed = itemObj.ingredients
+        .map((ing) => ing!.name)
+        .join(",");
+      const embedding = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: ingredientsToEmbed,
+        encoding_format: "float",
+      });
+
+      const vector = embedding.data[0].embedding;
+
+      try {
+        const res = await itemCollection.insertOne({
+          $vector: vector,
+          ...itemObj,
+        });
+        console.log(res);
+      } catch (e) {
+        console.log("error", e);
+      }
+    }
   }
+
+  // then a collection of resources, which are the ingredients used to make the items
+  const resourceCollection = await db.createCollection<ResourceObject>(
+    "lego_fortnite_resources",
+    {
+      defaultId: { type: "uuidv7" },
+      vector: {
+        dimension: 1536,
+        metric: "dot_product",
+      },
+      checkExists: false,
+    }
+  );
+  console.log(resourceCollection);
 
   const resourceDoc = await fetchFromWebOrCache(resourceUrl);
   const resourceData = extractResourceData(resourceDoc);
 
+  for (const resObj of resourceData) {
+    const resStr = JSON.stringify(resObj);
+    const embedding = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: resStr,
+      encoding_format: "float",
+    });
+
+    const vector = embedding.data[0].embedding;
+
+    try {
+      const res = await resourceCollection.insertOne({
+        $vector: vector,
+        ...resObj,
+      });
+      console.log(res);
+    } catch (e) {
+      console.log("error", e);
+    }
+  }
+
+  // close out the client since we're done!
+  await client.close();
   console.log("data fetching complete!");
 }
 
-getData();
+seedData();
