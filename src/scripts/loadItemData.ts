@@ -3,25 +3,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import axios, { AxiosError } from "axios";
 import { JSDOM } from "jsdom";
-import { DataAPIClient, type VectorDoc } from "@datastax/astra-db-ts";
+import { DataAPIClient } from "@datastax/astra-db-ts";
 import OpenAI from "openai";
+import { type ItemObject, type ResourceObject } from "@/utils/constants";
 
-interface ItemObject extends VectorDoc {
-  item: string;
-  rarity: string;
-  ingredients: Array<
-    | {
-        qty: number;
-        name: string;
-      }
-    | undefined
-  >;
-}
-
-interface ResourceObject extends VectorDoc {
-  resource: string;
-  biome: string;
-}
 
 const itemUrls = [
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/equipment/",
