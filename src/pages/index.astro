@@ -1,10 +1,21 @@
 ---
 import "@/styles/globals.css";
-import { GET } from "./api/getAllItems.json.ts";
+import { GET as GETItems } from "./api/getAllItems.json.ts";
 import type { ItemObject } from "@/utils/constants";
 
-let response = await GET(Astro);
+let response = await GETItems(Astro);
 const items = await response.json();
+
+if (Astro.request.method === "POST") {
+  try {
+    const data = await Astro.request.formData();
+    const itemsToBuild = data.get("buildItem");
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error(error.message);
+    }
+  }
+}
 ---
 
 <html lang="en">
@@ -16,15 +27,29 @@ const items = await response.json();
     <title>Craft Lists</title>
   </head>
   <body class="p-8">
-    <h1 class="text-center text-accent-foreground">Let's Craft!</h1>
-    <ul>
-      {
-        items.map((item: ItemObject) => (
-          <li>
-            {item.item}, {item.rarity}
-          </li>
-        ))
-      }
-    </ul>
+    <h1 class="text-center text-accent-foreground mb-4">Let's Craft!</h1>
+
+    <form method="POST">
+      <fieldset class="border p-3.5">
+        <legend>Select which items you'd like to craft:</legend>
+        <div class="mb-4 grid">
+          {
+            items.map((item: ItemObject) => (
+              <label class="mb-2">
+                <input type="checkbox" name="buildItem" value={item.item} />
+                {item.item} {item.rarity !== "N/A" ? `(${item.rarity})` : ""}
+              </label>
+            ))
+          }
+        </div>
+        <div class="flex place-content-center">
+          <button
+            type="submit"
+            class="bg-primary text-primary-foreground hover:bg-primary/90 p-2 rounded"
+            >Submit form</button
+          >
+        </div>
+      </fieldset>
+    </form>
   </body>
 </html>
