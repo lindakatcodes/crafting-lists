@@ -1,24 +1,15 @@
 ---
-import "@/styles/globals.css";
-import { GET as GETItems } from "./api/getAllItems.json.ts";
-import type { ItemObject } from "@/utils/constants";
+import "@/styles/global.css";
+import "@fontsource/acme";
+import { GET as getAllItems } from "./api/all-items.ts";
+import ItemForm from "@/components/ItemForm.vue";
 
-let response = await GETItems(Astro);
+let response = await getAllItems(Astro);
 const items = await response.json();
-
-if (Astro.request.method === "POST") {
-  try {
-    const data = await Astro.request.formData();
-    const itemsToBuild = data.get("buildItem");
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error.message);
-    }
-  }
-}
+console.log(items[0]._id);
 ---
 
-<html lang="en">
+<html lang="en" class="bg-zinc-900 text-zinc-200">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -26,30 +17,11 @@ if (Astro.request.method === "POST") {
     <meta name="generator" content={Astro.generator} />
     <title>Craft Lists</title>
   </head>
-  <body class="p-8">
-    <h1 class="text-center text-accent-foreground mb-4">Let's Craft!</h1>
+  <body class="py-8 px-6">
+    <h1 class="text-center mb-4">Let's Craft!</h1>
 
-    <form method="POST">
-      <fieldset class="border p-3.5">
-        <legend>Select which items you'd like to craft:</legend>
-        <div class="mb-4 grid">
-          {
-            items.map((item: ItemObject) => (
-              <label class="mb-2">
-                <input type="checkbox" name="buildItem" value={item.item} />
-                {item.item} {item.rarity !== "N/A" ? `(${item.rarity})` : ""}
-              </label>
-            ))
-          }
-        </div>
-        <div class="flex place-content-center">
-          <button
-            type="submit"
-            class="bg-primary text-primary-foreground hover:bg-primary/90 p-2 rounded"
-            >Submit form</button
-          >
-        </div>
-      </fieldset>
-    </form>
+    <ItemForm client:load items={items} />
+
+    <div id="results"></div>
   </body>
 </html>
