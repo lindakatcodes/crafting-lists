@@ -8,21 +8,53 @@ const db = client.db(import.meta.env.ASTRA_DB_API_ENDPOINT!, {
 });
 
 const collection = db.collection<ItemObject>("lego_fortnite_items");
-// const items = await collection.find({}).toArray();
 
 export const POST: APIRoute = async ({ request }) => {
   const data = await request.formData();
-  console.log(data);
-  const itemsToBuild = data.get("buildItem");
-  console.log({ itemsToBuild });
-  // logic here to actually get the real counts of each resource from astra
+  const itemsToBuild = data.getAll("buildItem");
+
+  if (!itemsToBuild) {
+    return new Response(
+      JSON.stringify({
+        message: "No items selected to build",
+      }),
+      { status: 200 }
+    );
+  }
+
+  const materials: Record<string, number> = {};
+
+  for (const item of itemsToBuild) {
+    const itemData = await collection.findOne({
+      _id: { $uuid: item as string },
+    });
+
+    if (!itemData || !itemData?.ingredients) {
+      return new Response(
+        JSON.stringify({
+          message: "Couldn't find this item in the db.",
+        }),
+        { status: 200 }
+      );
+    }
+
+    for (const ingObj of itemData?.ingredients) {
+      if (!ingObj) break;
+      const { qty, name } = ingObj;
+      const nameTrimmed = name.trim();
+
+      if (nameTrimmed in materials) {
+        materials[nameTrimmed] = materials[nameTrimmed] + qty;
+      } else {
+        materials[nameTrimmed] = qty;
+      }
+    }
+  }
 
   return new Response(
     JSON.stringify({
-      message: "Success",
+      materials,
     }),
     { status: 200 }
   );
 };
-
-await client.close();

@@ -13,5 +13,3 @@ const items = await collection.find({}).toArray();
 export const GET: APIRoute = () => {
   return new Response(JSON.stringify(items));
 };
-
-await client.close();
