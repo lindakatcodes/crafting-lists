@@ -21,8 +21,7 @@ const resourceUrl =
 
 const root = "./";
 
-const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT, OPENAI_API_KEY } =
-  process.env;
+const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT } = process.env;
 
 const openai = new OpenAI();
 
