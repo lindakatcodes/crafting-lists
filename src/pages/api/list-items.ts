@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   for (const item of itemsToBuild) {
     const itemData = await collection.findOne({
-      _id: { $uuid: item as string },
+      _id: item as string,
     });
 
     if (!itemData || !itemData?.ingredients) {

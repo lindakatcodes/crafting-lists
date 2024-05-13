@@ -7,7 +7,12 @@ defineProps<{
 }>();
 
 const checkedItems = ref([]);
-const materialList = ref<object>();
+const materialList = ref<object>({});
+
+function clearForm() {
+  checkedItems.value = [];
+  materialList.value = {};
+}
 
 async function submit(e: Event) {
   e.preventDefault();
@@ -18,40 +23,41 @@ async function submit(e: Event) {
   });
   const data = await response.json();
   materialList.value = data.materials;
-  checkedItems.value = [];
-  // make a button to clear the form instead of this - let items stay selected and then move the checkedItems reset to the clear button
 }
 </script>
 
 <template>
-  <form @submit="submit" class="mb-4">
+  <form @submit="submit" class="mb-4 lg:w-10/12 mx-auto">
     <fieldset class="border p-3">
       <legend class="text-center px-1.5">Select items to craft:</legend>
-      <div class="mb-4 grid md:grid-cols-2 lg:grid-cols-3 ps-10">
+      <div class="mb-4 columns-3xs">
         <label class="mb-2 flex items-baseline" v-for="item in items">
           <input
             type="checkbox"
             name="buildItem"
             :value="item._id.$uuid"
             v-model="checkedItems"
-            class="appearance-none box-border m-1 size-3 bg-zinc-200 border-2 border-zinc-500 checked:bg-rose-700"
+            class="appearance-none box-border m-1 size-4 bg-zinc-200 border-2 border-zinc-500 checked:bg-rose-700"
           />
           {{ item.item }} {{ item.rarity !== "N/A" ? `(${item.rarity})` : "" }}
         </label>
       </div>
-      <div class="flex justify-center">
+      <div class="flex justify-center gap-4">
+        <button @click="clearForm" type="button" class="bg-zinc-700 hover:bg-zinc-800 active:bg-zinc-800 py-2 px-3 rounded">Reset</button>
         <button
           type="submit"
           class="bg-rose-800 hover:bg-rose-900 active:bg-rose-900 py-2 px-3 rounded"
         >
-          Submit form
+          Get Materials
         </button>
       </div>
     </fieldset>
   </form>
 
-  <div v-if="materialList" class="mx-auto w-1/2">
-    <h2>Here's all the materials you need to craft your items:</h2>
-    <p v-for="(value, key) in materialList">{{ `${key}: ${value}` }}</p>
+  <div v-show="Object.keys(materialList).length !== 0" class="mx-auto w-1/4">
+    <h2>Here's the materials you need:</h2>
+    <div>
+      <p v-for="(value, key) in materialList">{{ `${key}: ${value}` }}</p>
+    </div>
   </div>
 </template>
