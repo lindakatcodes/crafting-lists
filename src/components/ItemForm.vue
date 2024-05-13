@@ -43,13 +43,13 @@ async function submit(e: Event) {
         </label>
       </div>
       <div class="flex justify-center gap-4">
-        <button @click="clearForm" type="button" class="bg-zinc-700 hover:bg-zinc-800 active:bg-zinc-800 py-2 px-3 rounded">Reset</button>
         <button
           type="submit"
           class="bg-rose-800 hover:bg-rose-900 active:bg-rose-900 py-2 px-3 rounded"
         >
           Get Materials
         </button>
+        <button @click="clearForm" type="button" class="bg-zinc-700 hover:bg-zinc-800 active:bg-zinc-800 py-2 px-3 rounded">Reset</button>
       </div>
     </fieldset>
   </form>
