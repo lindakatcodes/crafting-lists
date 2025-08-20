@@ -1,6 +1,6 @@
-import { type VectorDoc } from "@datastax/astra-db-ts";
+import { type VectorizeDoc } from "@datastax/astra-db-ts";
 
-export interface ItemObject extends VectorDoc {
+export interface ItemObject extends VectorizeDoc {
   item: string;
   rarity: string;
   ingredients: Array<
@@ -12,7 +12,7 @@ export interface ItemObject extends VectorDoc {
   >;
 }
 
-export interface ResourceObject extends VectorDoc {
+export interface ResourceObject extends VectorizeDoc {
   resource: string;
   biome: string;
 }

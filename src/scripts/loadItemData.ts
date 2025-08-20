@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import axios, { AxiosError } from "axios";
 import { JSDOM } from "jsdom";
 import { DataAPIClient } from "@datastax/astra-db-ts";
-import OpenAI from "openai";
+// import OpenAI from "openai";
 import { type ItemObject, type ResourceObject } from "@/utils/constants";
 
 
@@ -23,7 +23,7 @@ const root = "./";
 
 const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT } = process.env;
 
-const openai = new OpenAI();
+// const openai = new OpenAI();
 
 function fetchPage(url: string): Promise<string | undefined> {
   const HTMLData = axios
@@ -59,7 +59,7 @@ async function fetchFromWebOrCache(url: string, ignoreCache = false) {
     console.log(`I fetched ${url} fresh`);
     const HTMLData = await fetchPage(url);
     if (!ignoreCache && HTMLData) {
-      writeFile(
+      await writeFile(
         resolve(root, `.cache/${Buffer.from(url).toString("base64")}.html`),
         HTMLData,
         { encoding: "utf8" }
@@ -89,10 +89,10 @@ function extractItemData(document: Document) {
     const rows = Array.from(table.tBodies[0].rows);
 
     for (const row of rows) {
-      const item = row.children[itemIndex].textContent || "";
-      const rarity = row.children[rareIndex].textContent || "N/A";
+      const item = row.children[itemIndex]?.textContent || "";
+      const rarity = row.children[rareIndex]?.textContent || "N/A";
       const ingredients =
-        row.children[ingredientIndex].innerHTML.split(", ").map((pair) => {
+        row.children[ingredientIndex]?.innerHTML.split(", ").map((pair) => {
           if (pair === "") return;
           const splitPair = pair.split(/(\d+)/);
           return {
@@ -104,6 +104,7 @@ function extractItemData(document: Document) {
         item,
         rarity,
         ingredients,
+        $vectorize: "",
       });
     }
   }
@@ -117,7 +118,7 @@ function extractResourceData(document: Document) {
   );
 
   for (const table of allTables) {
-    const headers = Array.from(table.tHead!.children[0].children);
+    const headers = Array.from(table.tHead!?.children[0].children || []);
     const resourceIndex = headers.findIndex((el) =>
       el.innerHTML.includes("Resource")
     );
@@ -128,11 +129,12 @@ function extractResourceData(document: Document) {
     const rows = Array.from(table.tBodies[0].rows);
 
     for (const row of rows) {
-      const resource = row.children[resourceIndex].textContent || "";
-      const biome = row.children[biomeIndex].textContent || "";
+      const resource = row.children[resourceIndex]?.textContent || "";
+      const biome = row.children[biomeIndex]?.textContent || "";
       resources.push({
         resource,
         biome,
+        $vectorize: "",
       });
     }
   }
@@ -148,17 +150,7 @@ async function seedData() {
   console.log(`Connected to DB ${db.id}`);
 
   // items first - these are what users want to create
-  const itemCollection = await db.createCollection<ItemObject>(
-    "lego_fortnite_items",
-    {
-      defaultId: { type: "uuidv7" },
-      vector: {
-        dimension: 1536,
-        metric: "dot_product",
-      },
-      checkExists: false,
-    }
-  );
+  const itemCollection = await db.collection<ItemObject>("lego_fortnite_items");
   console.log(itemCollection);
 
   for await (const url of itemUrls) {
@@ -170,18 +162,20 @@ async function seedData() {
       const ingredientsToEmbed = itemObj.ingredients
         .map((ing) => ing!.name)
         .join(",");
-      const embedding = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: ingredientsToEmbed,
-        encoding_format: "float",
-      });
+      // const embedding = await openai.embeddings.create({
+      //   model: "text-embedding-3-small",
+      //   input: ingredientsToEmbed,
+      //   encoding_format: "float",
+      // });
 
-      const vector = embedding.data[0].embedding;
+      // const vector = embedding.data[0].embedding;
 
       try {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { $vectorize, ...rest } = itemObj;
         const res = await itemCollection.insertOne({
-          $vector: vector,
-          ...itemObj,
+          $vectorize: ingredientsToEmbed,
+          ...rest,
         });
         console.log(res);
       } catch (e) {
@@ -191,36 +185,29 @@ async function seedData() {
   }
 
   // then a collection of resources, which are the ingredients used to make the items
-  const resourceCollection = await db.createCollection<ResourceObject>(
-    "lego_fortnite_resources",
-    {
-      defaultId: { type: "uuidv7" },
-      vector: {
-        dimension: 1536,
-        metric: "dot_product",
-      },
-      checkExists: false,
-    }
+  const resourceCollection = await db.collection<ResourceObject>(
+    "lego_fortnite_resources"
   );
   console.log(resourceCollection);
 
   const resourceDoc = await fetchFromWebOrCache(resourceUrl);
   const resourceData = extractResourceData(resourceDoc);
+  console.log(resourceData);
 
   for (const resObj of resourceData) {
     const resStr = JSON.stringify(resObj);
-    const embedding = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: resStr,
-      encoding_format: "float",
-    });
+    // const embedding = await openai.embeddings.create({
+    //   model: "text-embedding-3-small",
+    //   input: resStr,
+    //   encoding_format: "float",
+    // });
 
-    const vector = embedding.data[0].embedding;
+    // const vector = embedding.data[0].embedding;
 
     try {
       const res = await resourceCollection.insertOne({
-        $vector: vector,
         ...resObj,
+        $vectorize: resStr,
       });
       console.log(res);
     } catch (e) {
