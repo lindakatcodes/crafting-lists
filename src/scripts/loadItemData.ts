@@ -10,9 +10,7 @@ import { type ItemObject, type ResourceObject } from "@/utils/constants";
 
 const itemUrls = [
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/equipment/",
-  "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/tools/",
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/charms/",
-  "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/crafting/weapons/",
   "https://www.reddit.com/r/LEGOfortnite/wiki/index/recipes/machinery/",
 ];
 
@@ -22,8 +20,6 @@ const resourceUrl =
 const root = "./";
 
 const { ASTRA_DB_APPLICATION_TOKEN, ASTRA_DB_API_ENDPOINT } = process.env;
-
-// const openai = new OpenAI();
 
 function fetchPage(url: string): Promise<string | undefined> {
   const HTMLData = axios
@@ -118,7 +114,7 @@ function extractResourceData(document: Document) {
   );
 
   for (const table of allTables) {
-    const headers = Array.from(table.tHead!?.children[0].children || []);
+    const headers = Array.from(table.tBodies[0].children[0].children || []);
     const resourceIndex = headers.findIndex((el) =>
       el.innerHTML.includes("Resource")
     );
@@ -128,14 +124,16 @@ function extractResourceData(document: Document) {
 
     const rows = Array.from(table.tBodies[0].rows);
 
-    for (const row of rows) {
-      const resource = row.children[resourceIndex]?.textContent || "";
-      const biome = row.children[biomeIndex]?.textContent || "";
-      resources.push({
-        resource,
-        biome,
-        $vectorize: "",
-      });
+    for (const [rowIndex, row] of rows.entries()) {
+      if (rowIndex !== 0) {
+        const resource = row.children[resourceIndex]?.textContent || "";
+        const biome = row.children[biomeIndex]?.textContent || "";
+        resources.push({
+          resource,
+          biome,
+          $vectorize: "",
+        });
+      }
     }
   }
   return resources;
@@ -162,13 +160,6 @@ async function seedData() {
       const ingredientsToEmbed = itemObj.ingredients
         .map((ing) => ing!.name)
         .join(",");
-      // const embedding = await openai.embeddings.create({
-      //   model: "text-embedding-3-small",
-      //   input: ingredientsToEmbed,
-      //   encoding_format: "float",
-      // });
-
-      // const vector = embedding.data[0].embedding;
 
       try {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -192,17 +183,9 @@ async function seedData() {
 
   const resourceDoc = await fetchFromWebOrCache(resourceUrl);
   const resourceData = extractResourceData(resourceDoc);
-  console.log(resourceData);
 
   for (const resObj of resourceData) {
     const resStr = JSON.stringify(resObj);
-    // const embedding = await openai.embeddings.create({
-    //   model: "text-embedding-3-small",
-    //   input: resStr,
-    //   encoding_format: "float",
-    // });
-
-    // const vector = embedding.data[0].embedding;
 
     try {
       const res = await resourceCollection.insertOne({

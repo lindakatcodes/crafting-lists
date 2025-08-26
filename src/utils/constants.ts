@@ -1,6 +1,7 @@
 import { type VectorizeDoc } from "@datastax/astra-db-ts";
 
 export interface ItemObject extends VectorizeDoc {
+  _id: string;
   item: string;
   rarity: string;
   ingredients: Array<

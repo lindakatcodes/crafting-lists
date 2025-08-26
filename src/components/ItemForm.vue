@@ -35,7 +35,7 @@ async function submit(e: Event) {
           <input
             type="checkbox"
             name="buildItem"
-            :value="item._id.$uuid"
+            :value="item._id"
             v-model="checkedItems"
             class="appearance-none box-border m-1 size-4 bg-zinc-200 border-2 border-zinc-500 checked:bg-rose-700"
           />
