@@ -16,10 +16,9 @@ async function runDatabaseTest() {
   console.log("Starting database health check...");
 
   try {
-    // Create a test collection
-    const testCollection = await db.createCollection<TestDocument>(
-      "health_check_test"
-    );
+    // Get the test collection
+    const testCollection =
+      await db.collection<TestDocument>("health_check_test");
 
     // Create a test document
     const testDoc = {
