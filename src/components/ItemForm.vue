@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, nextTick } from "vue";
 import type { ItemObject } from "@/utils/constants";
 
 defineProps<{
@@ -23,14 +23,17 @@ async function submit(e: Event) {
   });
   const data = await response.json();
   materialList.value = data.materials;
+  await nextTick(() => {
+    document.getElementById('material-results')?.scrollIntoView({behavior: 'smooth'});
+  });
 }
 </script>
 
 <template>
-  <form @submit="submit" class="mb-4 lg:w-10/12 mx-auto">
+  <form @submit="submit" class="mb-6 lg:w-11/12 mx-auto">
     <fieldset class="border p-3">
       <legend class="text-center px-1.5">Select items to craft:</legend>
-      <div class="mb-4 columns-3xs">
+      <div class="mb-4 grid md:grid-cols-2 lg:grid-cols-4 gap-x-2">
         <label class="mb-2 flex items-baseline" v-for="item in items">
           <input
             type="checkbox"
@@ -54,10 +57,12 @@ async function submit(e: Event) {
     </fieldset>
   </form>
 
-  <div v-show="Object.keys(materialList).length !== 0" class="mx-auto w-1/4">
-    <h2>Here's the materials you need:</h2>
-    <div>
+  <section id="material-results" class="mx-auto w-1/3 mb-6">
+    <div v-show="Object.keys(materialList).length !== 0">
+    <h2 class="mb-2 text-center">Here's the materials you need:</h2>
+    <div :class="(Object.keys(materialList).length > 5) && 'grid-cols-2 gap-x-4'" class="mx-auto w-3/4 grid">
       <p v-for="(value, key) in materialList">{{ `${key}: ${value}` }}</p>
     </div>
-  </div>
+    </div>
+  </section>
 </template>
